@@ -1,4 +1,4 @@
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 import random
 import copy
 
@@ -152,10 +152,24 @@ def run_genetic_algorithm(data, population_size=20, generations=500):
     return sorted(population, key=lambda x: fitness(x), reverse=True)[0]
 
 # Flask route to generate the timetable
-@app.route('/generate_timetable', methods=['GET'])
+@app.route('/generate_timetable', methods=['GET', 'POST'])
 def generate_timetable():
-    timetable = run_genetic_algorithm(data=None)
-    return jsonify(timetable)
+    if request.method == 'GET':
+        return jsonify({"message": "This is a POST-only endpoint. Please send a POST request with data."}), 405
+
+    # For POST requests
+    data = request.get_json()
+    
+    if data is None:
+        return jsonify({"error": "No data provided"}), 400
+    
+    # Pass the data to your genetic algorithm function
+    timetable = run_genetic_algorithm(data)
+    
+    # Return the generated timetable as a JSON response
+    return jsonify(timetable), 200
+
+
 
 # Run the Flask app
 if __name__ == "__main__":
