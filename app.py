@@ -74,39 +74,50 @@ def fitness(timetable):
 def generate_random_timetable():
     timetable = create_empty_timetable()
     
-    # Fill in the subjects and labs randomly
-    all_classes = subjects + labs
+    # Copy of classes to assign
+    all_classes = copy.deepcopy(subjects + labs)
+    
+    # Assign "Major Project" 3 times per week
+    project_assigned = 0
+    while project_assigned < 3:
+        day = random.choice(days)
+        slot = random.choice([i for i in range(len(time_slots)) if time_slots[i] not in ["11:15-11:30 (Break)", "1:30-2:15 (Break)"] and timetable[day][i] == ""])
+        timetable[day][slot] = project_slot
+        project_assigned += 1
+    
+    # Assign other classes
     for day in days:
-        slots_filled = 0
-        
-        # Add project slots 3 times per week
-        if sum([timetable[d].count(project_slot) for d in days]) < 3 and random.choice([True, False]):
-            project_index = random.randint(0, len(time_slots) - 1)
-            while timetable[day][project_index] != "":
-                project_index = random.randint(0, len(time_slots) - 1)
-            timetable[day][project_index] = project_slot
-            slots_filled += 1
-        
-        # Fill other slots with classes
         for i in range(len(time_slots)):
-            if timetable[day][i] == "" and time_slots[i] not in ["11:15-11:30 (Break)", "1:30-2:15 (Break)"]:
-                timetable[day][i] = random.choice(all_classes)
-                all_classes.remove(timetable[day][i])
-                if not all_classes:
-                    all_classes = subjects + labs  # Reset subjects/labs pool when exhausted
-                
-    # Add the breaks
-    for day in days:
-        timetable[day][2] = "Break"
-        timetable[day][5] = "Break"
-        
+            if time_slots[i] in ["11:15-11:30 (Break)", "1:30-2:15 (Break)"]:
+                timetable[day][i] = "Break"
+            elif timetable[day][i] == "":
+                if all_classes:
+                    chosen_class = random.choice(all_classes)
+                    timetable[day][i] = chosen_class
+                    all_classes.remove(chosen_class)
+                else:
+                    timetable[day][i] = ""  # Leave empty if no classes left
+    
+    # If any classes are left unassigned, randomly place them
+    remaining_classes = all_classes.copy()
+    for cls in remaining_classes:
+        placed = False
+        attempts = 0
+        while not placed and attempts < 100:
+            day = random.choice(days)
+            slot = random.choice([i for i in range(len(time_slots)) if time_slots[i] not in ["11:15-11:30 (Break)", "1:30-2:15 (Break)"] and timetable[day][slot] == ""])
+            if timetable[day][slot] == "":
+                timetable[day][slot] = cls
+                placed = True
+            attempts += 1
+    
     return timetable
 
 # Crossover between two timetables
 def crossover(timetable1, timetable2):
     new_timetable = copy.deepcopy(timetable1)
     crossover_day = random.choice(days)
-    new_timetable[crossover_day] = timetable2[crossover_day]
+    new_timetable[crossover_day] = copy.deepcopy(timetable2[crossover_day])
     return new_timetable
 
 # Mutation to introduce variability
@@ -126,19 +137,22 @@ def run_genetic_algorithm(data, population_size=20, generations=500):
     population = [generate_random_timetable() for _ in range(population_size)]
     
     for generation in range(generations):
+        # Sort population based on fitness
         population = sorted(population, key=lambda x: fitness(x), reverse=True)
         
+        # Check if the best timetable is valid
         if fitness(population[0]) == 1:
+            print(f"Optimal timetable found at generation {generation}")
             return population[0]  # Found an optimal solution
         
         # Selection (top 50% will survive)
-        population = population[:population_size // 2]
+        survivors = population[:population_size // 2]
         
         # Crossover and mutation to create new offspring
         new_population = []
         while len(new_population) < population_size:
-            parent1 = random.choice(population)
-            parent2 = random.choice(population)
+            parent1 = random.choice(survivors)
+            parent2 = random.choice(survivors)
             
             child = crossover(parent1, parent2)
             if random.random() < 0.1:  # 10% mutation rate
@@ -147,9 +161,11 @@ def run_genetic_algorithm(data, population_size=20, generations=500):
             new_population.append(child)
         
         population = new_population
-        
-    # Return the best timetable found
-    return sorted(population, key=lambda x: fitness(x), reverse=True)[0]
+    
+    # After all generations, return the best timetable found
+    best_timetable = sorted(population, key=lambda x: fitness(x), reverse=True)[0]
+    print("No optimal timetable found. Returning the best timetable found.")
+    return best_timetable
 
 # Flask route to generate the timetable
 @app.route('/generate_timetable', methods=['GET', 'POST'])
@@ -166,10 +182,20 @@ def generate_timetable():
     # Pass the data to your genetic algorithm function
     timetable = run_genetic_algorithm(data)
     
-    # Return the generated timetable as a JSON response
-    return jsonify(timetable), 200
-
-
+    # Format the timetable to include time slots
+    formatted_timetable = {}
+    
+    for day in days:
+        formatted_day = []
+        for i in range(len(time_slots)):
+            formatted_day.append({
+                "time_slot": time_slots[i],
+                "subject": timetable[day][i]
+            })
+        formatted_timetable[day] = formatted_day
+    
+    # Return the generated timetable in a structured format
+    return jsonify(formatted_timetable), 200
 
 # Run the Flask app
 if __name__ == "__main__":
