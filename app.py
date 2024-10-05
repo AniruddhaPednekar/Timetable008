@@ -13,10 +13,10 @@ subjects = [
     "CyberSecurity"
 ]
 labs = [
-    "Deep Learning Lab", 
-    "Blockchain Lab", 
     "Neural Network and Fuzzy System Lab", 
-    "Big Data Analytics Lab"
+    "Deep Learning Lab", 
+    "Big Data Analytics Lab", 
+    "Blockchain Lab"
 ]
 project_slot = "Major Project"
 days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"]
@@ -73,10 +73,18 @@ def fitness(timetable):
 # Generate a random timetable
 def generate_random_timetable():
     timetable = create_empty_timetable()
-    
+
     # Copy of classes to assign
-    all_classes = copy.deepcopy(subjects + labs)
+    all_classes = copy.deepcopy(subjects)
     
+    # Define the labs that take 2 hours (spanning two consecutive slots)
+    lab_sessions = {
+        "Neural Network and Fuzzy System Lab": False,
+        "Deep Learning Lab": False,
+        "Big Data Analytics Lab": False,
+        "Blockchain Lab": False
+    }
+
     # Assign "Major Project" 3 times per week
     project_assigned = 0
     while project_assigned < 3:
@@ -84,8 +92,20 @@ def generate_random_timetable():
         slot = random.choice([i for i in range(len(time_slots)) if time_slots[i] not in ["11:15-11:30 (Break)", "1:30-2:15 (Break)"] and timetable[day][i] == ""])
         timetable[day][slot] = project_slot
         project_assigned += 1
+
+    # Assign labs (each lab is 2 hours, spans 2 consecutive slots, once per week)
+    for lab in lab_sessions:
+        lab_assigned = False
+        while not lab_assigned:
+            day = random.choice(days)
+            slot = random.choice([i for i in range(len(time_slots) - 1) if time_slots[i] not in ["11:15-11:30 (Break)", "1:30-2:15 (Break)"] and timetable[day][i] == "" and timetable[day][i + 1] == ""])
+            
+            # Assign the lab to two consecutive slots
+            timetable[day][slot] = lab
+            timetable[day][slot + 1] = lab
+            lab_assigned = True
     
-    # Assign other classes
+    # Assign other subjects
     for day in days:
         for i in range(len(time_slots)):
             if time_slots[i] in ["11:15-11:30 (Break)", "1:30-2:15 (Break)"]:
@@ -97,19 +117,6 @@ def generate_random_timetable():
                     all_classes.remove(chosen_class)
                 else:
                     timetable[day][i] = ""  # Leave empty if no classes left
-    
-    # If any classes are left unassigned, randomly place them
-    remaining_classes = all_classes.copy()
-    for cls in remaining_classes:
-        placed = False
-        attempts = 0
-        while not placed and attempts < 100:
-            day = random.choice(days)
-            slot = random.choice([i for i in range(len(time_slots)) if time_slots[i] not in ["11:15-11:30 (Break)", "1:30-2:15 (Break)"] and timetable[day][slot] == ""])
-            if timetable[day][slot] == "":
-                timetable[day][slot] = cls
-                placed = True
-            attempts += 1
     
     return timetable
 
